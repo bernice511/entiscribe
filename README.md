@@ -55,5 +55,3 @@ streamlit run src/app.py
 ```bash
 pytest
 ```
-
-Sample invoices and a matching gold CSV are in `tests/fixtures/` for manual end-to-end testing.
