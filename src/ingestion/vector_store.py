@@ -10,9 +10,15 @@ DEFAULT_PERSIST_DIRECTORY = "chroma_db"
 DEFAULT_COLLECTION_NAME = "ner_documents"
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
+_SPLITTER = RecursiveCharacterTextSplitter(chunk_size=1200, chunk_overlap=100)
+
 
 def build_default_embeddings() -> Embeddings:
     return HuggingFaceEmbeddings(model_name=DEFAULT_EMBEDDING_MODEL)
+
+
+def chunk_text(text: str) -> list[str]:
+    return _SPLITTER.split_text(text)
 
 
 class DocumentStore:
@@ -29,7 +35,6 @@ class DocumentStore:
             embedding_function=embeddings or build_default_embeddings(),
             persist_directory=str(persist_directory),
         )
-        self._splitter = RecursiveCharacterTextSplitter(chunk_size=1200, chunk_overlap=100)
         self._file_names: set[str] = self._scan_file_names()
 
     def _scan_file_names(self) -> set[str]:
@@ -37,7 +42,9 @@ class DocumentStore:
         return {meta["file_name"] for meta in records["metadatas"] if "file_name" in meta}
 
     def add_file(self, file_name: str, text: str) -> None:
-        chunks = self._splitter.split_text(text)
+        self.add_chunks(file_name, chunk_text(text))
+
+    def add_chunks(self, file_name: str, chunks: list[str]) -> None:
         documents = [Document(page_content=chunk, metadata={"file_name": file_name}) for chunk in chunks]
         if documents:
             self._chroma.add_documents(documents)
