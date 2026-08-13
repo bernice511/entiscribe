@@ -3,7 +3,7 @@ import hashlib
 import pandas as pd
 
 from src.evaluation import groundedness
-from src.evaluation.groundedness import GroundednessScore
+from src.evaluation.groundedness import GroundednessBatch, GroundednessItem
 from src.ingestion.vector_store import DocumentStore
 from src.pipeline.evaluate_graph import evaluate
 
@@ -18,7 +18,7 @@ class FakeEmbeddings:
 
 
 def _fake_run_claude_structured(prompt, schema_model, *, model=None, timeout=120):
-    return GroundednessScore(score=1.0, reasoning="ok")
+    return GroundednessBatch(items=[GroundednessItem(index=0, score=1.0, reasoning="ok")])
 
 
 def _make_store(tmp_path, name: str) -> DocumentStore:

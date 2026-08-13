@@ -1,10 +1,18 @@
+import re
+
 from src.evaluation import groundedness
-from src.evaluation.groundedness import GroundednessScore, score_extraction_results
+from src.evaluation.groundedness import GroundednessBatch, GroundednessItem, score_extraction_results
 from src.llm.claude_cli import ClaudeCLIError
 
 
+def _requested_indices(prompt: str) -> list[int]:
+    return [int(m) for m in re.findall(r"^(\d+)\. entity type:", prompt, re.MULTILINE)]
+
+
 def _fake_run_claude_structured(prompt, schema_model, *, model=None, timeout=120):
-    return GroundednessScore(score=0.9, reasoning="supported by context")
+    return GroundednessBatch(
+        items=[GroundednessItem(index=i, score=0.9, reasoning="supported by context") for i in _requested_indices(prompt)]
+    )
 
 
 def test_score_extraction_results_produces_one_row_per_value(monkeypatch):
@@ -29,17 +37,36 @@ def test_score_extraction_results_skips_entities_with_no_values(monkeypatch):
     assert rows == []
 
 
-def test_score_extraction_results_isolates_a_single_value_failure(monkeypatch):
+def test_score_extraction_results_uses_a_single_batched_call_per_file(monkeypatch):
+    calls = []
+
+    def counting_fake(prompt, schema_model, *, model=None, timeout=120):
+        calls.append(prompt)
+        return _fake_run_claude_structured(prompt, schema_model, model=model, timeout=timeout)
+
+    monkeypatch.setattr(groundedness, "run_claude_structured", counting_fake)
+
+    extraction_results = {"a.pdf": {"Person": ["John", "Mary"], "Location": ["Boston"]}}
+    rows = score_extraction_results(extraction_results, {"a.pdf": "context"})
+
+    assert len(calls) == 1
+    assert len(rows) == 3
+
+
+def test_score_extraction_results_isolates_a_single_file_failure(monkeypatch):
     def flaky_run_claude_structured(prompt, schema_model, *, model=None, timeout=120):
-        if "Mary" in prompt:
+        if "b-context" in prompt:
             raise ClaudeCLIError("claude CLI not found on PATH")
-        return GroundednessScore(score=0.9, reasoning="supported by context")
+        return _fake_run_claude_structured(prompt, schema_model, model=model, timeout=timeout)
 
     monkeypatch.setattr(groundedness, "run_claude_structured", flaky_run_claude_structured)
 
-    rows = score_extraction_results({"a.pdf": {"Person": ["John", "Mary"]}}, {"a.pdf": "context"})
+    extraction_results = {"a.pdf": {"Person": ["John"]}, "b.pdf": {"Person": ["Mary"]}}
+    contexts = {"a.pdf": "a-context", "b.pdf": "b-context"}
 
-    by_value = {r["value"]: r for r in rows}
-    assert by_value["John"]["groundedness_score"] == 0.9
-    assert by_value["Mary"]["groundedness_score"] is None
-    assert "claude CLI not found on PATH" in by_value["Mary"]["groundedness_reasoning"]
+    rows = score_extraction_results(extraction_results, contexts)
+
+    by_file = {r["file_name"]: r for r in rows}
+    assert by_file["a.pdf"]["groundedness_score"] == 0.9
+    assert by_file["b.pdf"]["groundedness_score"] is None
+    assert "claude CLI not found on PATH" in by_file["b.pdf"]["groundedness_reasoning"]

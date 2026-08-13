@@ -1,3 +1,5 @@
+import concurrent.futures
+
 from langgraph.graph import END, START, StateGraph
 
 from src.entities.schema import build_entity_model
@@ -60,13 +62,24 @@ def extract_entities(
     entities: dict[str, str],
     model: str | None = None,
 ) -> tuple[dict[str, dict[str, list[str]]], dict[str, str]]:
-    """Extracts entities for every stored file. A failure on one file is isolated: it's
-    reported in the returned errors dict instead of aborting extraction for the rest."""
+    """Extracts entities for every stored file, run concurrently across files. A failure on
+    one file is isolated: it's reported in the returned errors dict instead of aborting
+    extraction for the rest."""
+    file_names = store.list_files()
+    if not file_names:
+        return {}, {}
+
     results: dict[str, dict[str, list[str]]] = {}
     errors: dict[str, str] = {}
-    for file_name in store.list_files():
-        try:
-            results[file_name] = extract_entities_for_file(store, file_name, entities, model=model)
-        except ClaudeCLIError as exc:
-            errors[file_name] = str(exc)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(file_names))) as executor:
+        future_to_file = {
+            executor.submit(extract_entities_for_file, store, file_name, entities, model=model): file_name
+            for file_name in file_names
+        }
+        for future in concurrent.futures.as_completed(future_to_file):
+            file_name = future_to_file[future]
+            try:
+                results[file_name] = future.result()
+            except ClaudeCLIError as exc:
+                errors[file_name] = str(exc)
     return results, errors
