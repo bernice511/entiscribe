@@ -13,14 +13,18 @@ EXTRACTION_INSTRUCTIONS = (
 )
 
 
+def build_context(store: DocumentStore, file_name: str, entities: dict[str, str], k: int = 5) -> str:
+    query = " ".join(entities.values())
+    chunks = store.query(query, file_name=file_name, k=k)
+    return "\n\n".join(chunks)
+
+
 def build_extract_graph(store: DocumentStore, entities: dict[str, str], model: str | None = None):
     entity_model, field_to_entity = build_entity_model(entities)
     entity_descriptions = "\n".join(f"- {name}: {desc}" for name, desc in entities.items())
 
     def retrieve(state: ExtractState) -> ExtractState:
-        query = " ".join(entities.values())
-        chunks = store.query(query, file_name=state["file_name"], k=5)
-        return {"context": "\n\n".join(chunks)}
+        return {"context": build_context(store, state["file_name"], entities)}
 
     def extract(state: ExtractState) -> ExtractState:
         prompt = (

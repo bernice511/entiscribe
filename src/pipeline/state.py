@@ -1,5 +1,7 @@
 from typing import TypedDict
 
+import pandas as pd
+
 
 class IngestState(TypedDict, total=False):
     file_name: str
@@ -16,8 +18,8 @@ class ExtractState(TypedDict, total=False):
 
 
 class EvaluateState(TypedDict, total=False):
-    extraction_results: list[dict]
-    gold_standard: list[dict]
+    extraction_results: dict[str, dict[str, list[str]]]
+    gold_standard: pd.DataFrame | None
     metrics: dict
     groundedness: list[dict]
     report: list[dict]
