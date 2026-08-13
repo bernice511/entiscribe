@@ -38,12 +38,29 @@ def render_upload_tab() -> None:
         st.info("Define at least one entity type in the sidebar to run extraction.")
     elif stored_files and st.button("Run extraction"):
         with st.spinner("Extracting entities..."):
-            state.extraction_results = extract_entities(state.store, state.entities, model=state.model_alias)
+            state.extraction_results, state.extraction_errors = extract_entities(
+                state.store, state.entities, model=state.model_alias
+            )
 
-    if state.extraction_results:
-        rows = [
-            {"file_name": file_name, "entity": entity_name, "values": ", ".join(values)}
-            for file_name, entities in state.extraction_results.items()
-            for entity_name, values in entities.items()
-        ]
-        st.dataframe(pd.DataFrame(rows))
+    _render_results_per_file(state.extraction_results, state.extraction_errors)
+
+
+def _render_results_per_file(
+    extraction_results: dict[str, dict[str, list[str]]],
+    extraction_errors: dict[str, str],
+) -> None:
+    file_names = sorted(set(extraction_results) | set(extraction_errors))
+    if not file_names:
+        return
+
+    st.subheader("Extraction results")
+    for file_name, tab in zip(file_names, st.tabs(file_names)):
+        with tab:
+            if file_name in extraction_errors:
+                st.error(extraction_errors[file_name])
+                continue
+            rows = [
+                {"entity": entity_name, "values": ", ".join(values)}
+                for entity_name, values in extraction_results[file_name].items()
+            ]
+            st.dataframe(pd.DataFrame(rows), width="stretch")
