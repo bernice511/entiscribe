@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from src.llm.claude_cli import run_claude_structured
+from src.llm.claude_cli import ClaudeCLIError, run_claude_structured
 
 GROUNDEDNESS_INSTRUCTIONS = (
     "You are checking whether an extracted value is actually supported by a document excerpt. "
@@ -34,14 +34,18 @@ def score_extraction_results(
         context = contexts.get(file_name, "")
         for entity_name, values in entities.items():
             for value in values:
-                result = score_groundedness(entity_name, value, context, model=model)
+                try:
+                    result = score_groundedness(entity_name, value, context, model=model)
+                    score, reasoning = result.score, result.reasoning
+                except ClaudeCLIError as exc:
+                    score, reasoning = None, f"Error: {exc}"
                 rows.append(
                     {
                         "file_name": file_name,
                         "entity_name": entity_name,
                         "value": value,
-                        "groundedness_score": result.score,
-                        "groundedness_reasoning": result.reasoning,
+                        "groundedness_score": score,
+                        "groundedness_reasoning": reasoning,
                     }
                 )
     return rows

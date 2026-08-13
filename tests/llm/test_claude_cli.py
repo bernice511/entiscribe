@@ -76,6 +76,16 @@ def test_run_claude_raises_on_non_json_stdout(monkeypatch):
         run_claude("say hi")
 
 
+def test_run_claude_raises_clear_error_when_cli_not_on_path(monkeypatch):
+    def fake_run(*a, **k):
+        raise FileNotFoundError("no such file")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(ClaudeCLIError, match="not found on PATH"):
+        run_claude("say hi")
+
+
 def test_run_claude_raises_when_envelope_reports_error(monkeypatch):
     monkeypatch.setattr(
         subprocess, "run", lambda *a, **k: _FakeCompleted(_envelope(is_error=True, result="denied"))

@@ -2,7 +2,7 @@ from langgraph.graph import END, START, StateGraph
 
 from src.entities.schema import build_entity_model
 from src.ingestion.vector_store import DocumentStore
-from src.llm.claude_cli import run_claude_structured
+from src.llm.claude_cli import ClaudeCLIError, run_claude_structured
 from src.pipeline.state import ExtractState
 
 EXTRACTION_INSTRUCTIONS = (
@@ -59,8 +59,14 @@ def extract_entities(
     store: DocumentStore,
     entities: dict[str, str],
     model: str | None = None,
-) -> dict[str, dict[str, list[str]]]:
-    return {
-        file_name: extract_entities_for_file(store, file_name, entities, model=model)
-        for file_name in store.list_files()
-    }
+) -> tuple[dict[str, dict[str, list[str]]], dict[str, str]]:
+    """Extracts entities for every stored file. A failure on one file is isolated: it's
+    reported in the returned errors dict instead of aborting extraction for the rest."""
+    results: dict[str, dict[str, list[str]]] = {}
+    errors: dict[str, str] = {}
+    for file_name in store.list_files():
+        try:
+            results[file_name] = extract_entities_for_file(store, file_name, entities, model=model)
+        except ClaudeCLIError as exc:
+            errors[file_name] = str(exc)
+    return results, errors

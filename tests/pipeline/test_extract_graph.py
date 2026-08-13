@@ -1,6 +1,7 @@
 import hashlib
 
 from src.ingestion.vector_store import DocumentStore
+from src.llm.claude_cli import ClaudeCLIError
 from src.pipeline import extract_graph
 from src.pipeline.extract_graph import extract_entities, extract_entities_for_file
 
@@ -42,7 +43,25 @@ def test_extract_entities_runs_for_every_stored_file(tmp_path, monkeypatch):
     store.add_file("a.pdf", "content a")
     store.add_file("b.pdf", "content b")
 
-    result = extract_entities(store, {"Person": "person desc"})
+    result, errors = extract_entities(store, {"Person": "person desc"})
 
     assert set(result.keys()) == {"a.pdf", "b.pdf"}
     assert result["a.pdf"] == {"Person": ["person"]}
+    assert errors == {}
+
+
+def test_extract_entities_isolates_a_single_file_failure(tmp_path, monkeypatch):
+    def flaky_run_claude_structured(prompt, schema_model, *, model=None, timeout=120):
+        if "b.pdf" in prompt or "content b" in prompt:
+            raise ClaudeCLIError("claude CLI not found on PATH")
+        return schema_model(**{name: [name] for name in schema_model.model_fields})
+
+    monkeypatch.setattr(extract_graph, "run_claude_structured", flaky_run_claude_structured)
+    store = _make_store(tmp_path, "extract-test-three")
+    store.add_file("a.pdf", "content a")
+    store.add_file("b.pdf", "content b")
+
+    result, errors = extract_entities(store, {"Person": "person desc"})
+
+    assert result == {"a.pdf": {"Person": ["person"]}}
+    assert errors == {"b.pdf": "claude CLI not found on PATH"}

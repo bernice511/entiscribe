@@ -14,6 +14,7 @@ class SessionState:
     entities: dict[str, str] = field(default_factory=dict)
     model_alias: str = "sonnet"
     extraction_results: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+    extraction_errors: dict[str, str] = field(default_factory=dict)
     evaluation_report: list[dict] = field(default_factory=list)
     gold_df: pd.DataFrame | None = None
 

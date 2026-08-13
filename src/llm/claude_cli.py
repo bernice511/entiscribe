@@ -28,6 +28,11 @@ def run_claude(
         completed = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired as exc:
         raise ClaudeCLIError(f"claude CLI timed out after {timeout}s") from exc
+    except FileNotFoundError as exc:
+        raise ClaudeCLIError(
+            "claude CLI not found on PATH. Make sure `claude` is installed and on PATH for "
+            "whichever shell/process launched this app (run `which claude` there to check)."
+        ) from exc
 
     if completed.returncode != 0:
         raise ClaudeCLIError(f"claude CLI exited {completed.returncode}: {completed.stderr.strip()}")
