@@ -1,20 +1,37 @@
 from pathlib import Path
 
+from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 DEFAULT_PERSIST_DIRECTORY = "chroma_db"
 DEFAULT_COLLECTION_NAME = "ner_documents"
-DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 _SPLITTER = RecursiveCharacterTextSplitter(chunk_size=1200, chunk_overlap=100)
 
 
+class OnnxEmbeddings(Embeddings):
+    """Local all-MiniLM-L6-v2 embeddings via chromadb's bundled ONNX runtime.
+
+    Avoids sentence-transformers/transformers/torch, whose vision-model imports
+    (zoedepth, kimi_k25, ...) unconditionally require torchvision and similar
+    extras we don't need just to embed text.
+    """
+
+    def __init__(self):
+        self._embed = ONNXMiniLM_L6_V2()
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [vector.tolist() for vector in self._embed(texts)]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self.embed_documents([text])[0]
+
+
 def build_default_embeddings() -> Embeddings:
-    return HuggingFaceEmbeddings(model_name=DEFAULT_EMBEDDING_MODEL)
+    return OnnxEmbeddings()
 
 
 def chunk_text(text: str) -> list[str]:

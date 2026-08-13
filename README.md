@@ -20,13 +20,14 @@ once in a single report.
 
 All LLM calls shell out to the `claude` CLI (`claude -p ... --output-format json --json-schema ...`)
 using your existing Claude Code login, instead of a keyed `ChatOpenAI`/`ChatAnthropic` client.
-Embeddings run locally via `sentence-transformers`. Nothing in this app needs a secret.
+Embeddings run locally via chromadb's bundled ONNX `all-MiniLM-L6-v2` model (no torch/transformers).
+Nothing in this app needs a secret.
 
 ## Architecture
 
 - `src/ingestion/pdf.py` — PDF → text (single code path, page numbers kept)
-- `src/ingestion/vector_store.py` — additive Chroma wrapper (`langchain_chroma` +
-  `langchain_huggingface`)
+- `src/ingestion/vector_store.py` — additive Chroma wrapper (`langchain_chroma` + a local ONNX
+  embedding function)
 - `src/llm/claude_cli.py` — subprocess wrapper around the `claude` CLI
 - `src/entities/schema.py` — preset entity types + dynamic pydantic model per extraction run
 - `src/pipeline/*_graph.py` — three LangGraph pipelines: ingest (load → chunk → embed/store),
